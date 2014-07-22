@@ -1,15 +1,18 @@
 FROM    ubuntu:latest
 MAINTAINER Ricardo Amaro <mail@ricardoamaro.com>
-RUN echo "deb http://archive.ubuntu.com/ubuntu raring main restricted universe multiverse" > /etc/apt/sources.list
+RUN echo "deb http://ucmirror.canterbury.ac.nz/ubuntu trusty main restricted universe multiverse" > /etc/apt/sources.list
 RUN apt-get update
 #RUN apt-get -y upgrade
 
 # Keep upstart from complaining
 RUN dpkg-divert --local --rename --add /sbin/initctl
-RUN ln -s /bin/true /sbin/initctl
+RUN ln -nfs /bin/true /sbin/initctl
+
+# hack due to this bug: https://github.com/dotcloud/docker/issues/6345 
+RUN ln -sf /bin/true /usr/bin/chfn
 
 # Basic Requirements
-RUN DEBIAN_FRONTEND=noninteractive apt-get -y install mysql-server mysql-client nginx php5-fpm php5-mysql php-apc pwgen python-setuptools curl git unzip
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install mariadb-server-5.5 mariadb-client-5.5 nginx php5-fpm php5-mysql php-apc pwgen python-setuptools curl git unzip
 
 # Drupal Requirements
 RUN DEBIAN_FRONTEND=noninteractive apt-get -y install php5-curl php5-gd php5-intl php-pear php5-imap php5-memcache memcached drush mc
