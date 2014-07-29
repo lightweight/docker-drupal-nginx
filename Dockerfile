@@ -1,25 +1,46 @@
-FROM    ubuntu:latest
-MAINTAINER Ricardo Amaro <mail@ricardoamaro.com>
+FROM    ubuntu:14.04
+MAINTAINER Dave Lane <dave.lane@catalyst.net.nz> 
 RUN echo "deb http://ucmirror.canterbury.ac.nz/ubuntu trusty main restricted universe multiverse" > /etc/apt/sources.list
 RUN apt-get update
 #RUN apt-get -y upgrade
 
 # Keep upstart from complaining
-RUN dpkg-divert --local --rename --add /sbin/initctl
-RUN ln -nfs /bin/true /sbin/initctl
+#RUN dpkg-divert --local --rename --add /sbin/initctl
+#RUN ln -nfs /bin/true /sbin/initctl
+
+# Sort out Locale -> UTF-8, en_NZ
+RUN apt-get -y install locales
+RUN echo "en_NZ.UTF-8 UTF-8" > /etc/locale.gen
+RUN locale-gen en_NZ.UTF-8
+ENV LANGUAGE en_NZ.UTF-8
+ENV LANG en_NZ.UTF-8
+ENV LC_ALL en_NZ.UTF-8
 
 # hack due to this bug: https://github.com/dotcloud/docker/issues/6345 
 RUN ln -sf /bin/true /usr/bin/chfn
 
-# Basic Requirements
-RUN DEBIAN_FRONTEND=noninteractive apt-get -y install mariadb-server-5.5 mariadb-client-5.5 nginx php5-fpm php5-mysql php-apc pwgen python-setuptools curl git unzip
+# Basic Requirements - for a separate MariaDb container, see https://github.com/bnchdrff/dockerfiles/blob/master/mariadb
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install mariadb-server-5.5 mariadb-client-5.5 nginx php5-fpm php5-mysql php-apc pwgen python-setuptools curl git unzip drush 
+
+# Further requirements
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install openssh-server openssl ca-certificates 
 
 # Drupal Requirements
-RUN DEBIAN_FRONTEND=noninteractive apt-get -y install php5-curl php5-gd php5-intl php-pear php5-imap php5-memcache memcached drush mc
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install php5-curl php5-gd php5-intl php-pear php5-imap php5-memcache memcached mc
+# install Composer and then Drush - https://github.com/drush-ops/drush
+RUN curl -sS https://getcomposer.org/installer | php
+RUN mv composer.phar /usr/local/bin/composer
+RUN composer global require drush/drush:6.*
+#RUN sed -i '1i export PATH="/root/.composer/vendor/bin:$PATH"' /root/.bashrc
+RUN ln -sf /root/.composer/vendor/drush/drush/drush /usr/local/bin/drush
+#RUN . /root/.bashrc
+#RUN which drush 
+RUN drush help
 
+# tidy up
 RUN apt-get clean
 
-# Make mysql listen on the outside
+# Make MariaDB listen on the outside
 RUN sed -i "s/^bind-address/#bind-address/" /etc/mysql/my.cnf
 
 # nginx config
@@ -39,8 +60,17 @@ RUN /usr/bin/easy_install supervisor
 ADD ./supervisord.conf /etc/supervisord.conf
 
 # Retrieve drupal
-RUN rm -rf /var/www/ ; cd /var ; drush dl drupal ; mv /var/drupal*/ /var/www/
-RUN chmod a+w /var/www/sites/default ; mkdir /var/www/sites/default/files ; chown -R www-data:www-data /var/www/
+#RUN rm -rf /var/www/ ; cd /var ; drush dl drupal ; mv /var/drupal*/ /var/www/
+#RUN chmod a+w /var/www/sites/default ; mkdir /var/www/sites/default/files ; chown -R www-data:www-data /var/www/
+
+# install openssh
+RUN mkdir /var/run/sshd
+RUN mkdir /root/.ssh
+ADD ~/.ssh/id_rsa.pub /root/.ssh/authorized_keys
+RUN chown -R root:root /root/.ssh
+RUN chmod 700 /root/.ssh
+RUN chmod 600 /root/.ssh
+RUN sed -e 's/^PermitRootLogin.*$/PermitRootLogin without-password/g' /etc/ssh/sshd_config > /tmp/sshd_config && mv /tmp/sshd_config /etc/ssh/sshd_config
 
 # Drupal Initialization and Startup Script
 ADD ./start.sh /start.sh
@@ -48,5 +78,7 @@ RUN chmod 755 /start.sh
 
 # private expose
 EXPOSE 80
+EXPOSE 80
+EXPOSE 443
 
 CMD ["/bin/bash", "/start.sh"]
