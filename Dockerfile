@@ -1,3 +1,7 @@
+#This is a branch of 
+#
+# Note, I use this to access my containers -> nsenter: https://github.com/jpetazzo/nsenter
+
 FROM    ubuntu:14.04
 MAINTAINER Dave Lane <dave.lane@catalyst.net.nz> 
 RUN echo "deb http://ucmirror.canterbury.ac.nz/ubuntu trusty main restricted universe multiverse" > /etc/apt/sources.list
@@ -23,19 +27,19 @@ RUN ln -sf /bin/true /usr/bin/chfn
 RUN DEBIAN_FRONTEND=noninteractive apt-get -y install mariadb-server-5.5 mariadb-client-5.5 nginx php5-fpm php5-mysql php-apc pwgen python-setuptools curl git unzip drush 
 
 # Further requirements
-RUN DEBIAN_FRONTEND=noninteractive apt-get -y install openssh-server openssl ca-certificates 
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install openssl ca-certificates 
 
 # Drupal Requirements
 RUN DEBIAN_FRONTEND=noninteractive apt-get -y install php5-curl php5-gd php5-intl php-pear php5-imap php5-memcache memcached mc
 # install Composer and then Drush - https://github.com/drush-ops/drush
-RUN curl -sS https://getcomposer.org/installer | php
-RUN mv composer.phar /usr/local/bin/composer
-RUN composer global require drush/drush:6.*
-#RUN sed -i '1i export PATH="/root/.composer/vendor/bin:$PATH"' /root/.bashrc
-RUN ln -sf /root/.composer/vendor/drush/drush/drush /usr/local/bin/drush
-#RUN . /root/.bashrc
-#RUN which drush 
-RUN drush help
+##RUN curl -sS https://getcomposer.org/installer | php
+##RUN mv composer.phar /usr/local/bin/composer
+##RUN composer global require drush/drush:6.*
+###RUN sed -i '1i export PATH="/root/.composer/vendor/bin:$PATH"' /root/.bashrc
+##RUN ln -sf /root/.composer/vendor/drush/drush/drush /usr/local/bin/drush
+###RUN . /root/.bashrc
+###RUN which drush 
+#RUN drush help
 
 # tidy up
 RUN apt-get clean
@@ -60,24 +64,15 @@ RUN /usr/bin/easy_install supervisor
 ADD ./supervisord.conf /etc/supervisord.conf
 
 # Retrieve drupal
-#RUN rm -rf /var/www/ ; cd /var ; drush dl drupal ; mv /var/drupal*/ /var/www/
-#RUN chmod a+w /var/www/sites/default ; mkdir /var/www/sites/default/files ; chown -R www-data:www-data /var/www/
-
-# install openssh
-RUN mkdir /var/run/sshd
-RUN mkdir /root/.ssh
-ADD ~/.ssh/id_rsa.pub /root/.ssh/authorized_keys
-RUN chown -R root:root /root/.ssh
-RUN chmod 700 /root/.ssh
-RUN chmod 600 /root/.ssh
-RUN sed -e 's/^PermitRootLogin.*$/PermitRootLogin without-password/g' /etc/ssh/sshd_config > /tmp/sshd_config && mv /tmp/sshd_config /etc/ssh/sshd_config
+RUN mkdir /var/www; cd /var/www ; drush dl drupal 
+RUN chmod a+w /var/www/drupal/sites/default
+RUN mkdir /var/www/drupal/sites/default/files ; chown -R www-data:www-data /var/www/drupal
 
 # Drupal Initialization and Startup Script
 ADD ./start.sh /start.sh
 RUN chmod 755 /start.sh
 
 # private expose
-EXPOSE 80
 EXPOSE 80
 EXPOSE 443
 
